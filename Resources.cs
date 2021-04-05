@@ -19,18 +19,20 @@ namespace Evaisa.BetterShrines
 
             Loaded = true;
             var execAssembly = Assembly.GetExecutingAssembly();
-            using (var stream = execAssembly.GetManifestResourceStream("Evaisa.BetterShrines.shrinebundle"))
+            using (var stream = execAssembly.GetManifestResourceStream("Evaisa.BetterShrines.bettershrines"))
             {
                 var bundle = AssetBundle.LoadFromStream(stream);
 
-                ShrineFallenPrefab = bundle.LoadAsset<Object>("Assets/ShrineOfTheFallen/ShrineFallen.prefab");
+                ShrineFallenPrefab = bundle.LoadAsset<Object>("Assets/BetterShrines/ShrineOfTheFallen/ShrineFallen.prefab");
                 BetterShrines.Print(ShrineFallenPrefab.name + " was loaded!");
+                ShrineImpPrefab = bundle.LoadAsset<Object>("Assets/BetterShrines/ImpShrine/ShrineImp.prefab");
             }
         }
 
         public static bool Loaded { get; private set; }
 
         public static Object ShrineFallenPrefab { get; private set; }
+        public static Object ShrineImpPrefab { get; private set; }
 
     }
 }

@@ -9,7 +9,7 @@ using System.Linq;
 namespace Evaisa.BetterShrines
 {
 	[RequireComponent(typeof(PurchaseInteraction))]
-	public class ShrineFallenBehavior : MonoBehaviour
+	public class ShrineFallenBehaviour : NetworkBehaviour
 	{
 		public Interactor whoInteracted;
 		public Transform symbolTransform;
@@ -53,16 +53,20 @@ namespace Evaisa.BetterShrines
 						
 						symbolTransform.gameObject.SetActive(true);
 						isAvailable = true;
+						if (NetworkServer.active)
+						{
+							purchaseInteraction.SetAvailable(true);
+						}
 					}
 					else
 					{
 						symbolTransform.gameObject.SetActive(false);
 						isAvailable = false;
+						if (NetworkServer.active)
+						{
+							purchaseInteraction.SetAvailable(false);
+						}
 
-					}
-					if (NetworkServer.active)
-					{
-						purchaseInteraction.SetAvailable(true);
 					}
 				}
             }
