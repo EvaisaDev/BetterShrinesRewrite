@@ -137,36 +137,13 @@ namespace Evaisa.BetterShrines
 			interactable.interactablePrefab = shrinePrefab;
 			interactable.slightlyRandomizeOrientation = true;
 			interactable.selectionWeight = 3000;
-			interactable.interactableCategory = Interactables.category.Shrines;
+			interactable.interactableCategory = Interactables.Category.Shrines;
 
-			BetterAPI.Interactables.Add(interactable);
+
+			Interactables.AddToStages(interactable, Interactables.Stages.AbandonedAqueduct | Interactables.Stages.AbyssalDepths | Interactables.Stages.Commencement | Interactables.Stages.DistantRoost | Interactables.Stages.RallypointDelta | Interactables.Stages.ScorchedAcres | Interactables.Stages.SirensCall | Interactables.Stages.SkyMeadow | Interactables.Stages.SunderedGrove | Interactables.Stages.TitanicPlains | Interactables.Stages.WetlandAspect );
 
 		}
 
-		private void addFallenShrine(WeightedSelection<DirectorCard> weightedSelection)
-		{
-			/*
-			var newDirectorCard = new DirectorCard();
-
-			newDirectorCard.spawnCard = fallenShrineSpawnCard;
-			newDirectorCard.selectionWeight = 3;
-			newDirectorCard.spawnDistance = DirectorCore.MonsterSpawnDistance.Close;
-			newDirectorCard.allowAmbushSpawn = true;
-			newDirectorCard.preventOverhead = false;
-			newDirectorCard.minimumStageCompletions = 0;
-			newDirectorCard.requiredUnlockable = "";
-			newDirectorCard.forbiddenUnlockable = "";
-
-			weightedSelection.AddChoice(newDirectorCard, FallenShrineWeight.Value);
-
-			*/
-			/*	weightedSelection.choices.ForEachTry(choice =>
-				{
-					//Print(choice.value.spawnCard.prefab.name);
-					Print("Name: "+choice.value.spawnCard.prefab.name);
-					Print("Weight: " + choice.weight);
-				});*/
-		}
 
     }
 
