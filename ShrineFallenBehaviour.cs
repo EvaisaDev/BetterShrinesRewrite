@@ -5,8 +5,9 @@ using UnityEngine.Networking;
 using RoR2;
 using System.Collections.Generic;
 using System.Linq;
+using BetterAPI;
 
-namespace Evaisa.BetterShrines
+namespace Evaisa.MoreShrines
 {
 	[RequireComponent(typeof(PurchaseInteraction))]
 	public class ShrineFallenBehaviour : NetworkBehaviour
@@ -15,27 +16,75 @@ namespace Evaisa.BetterShrines
 		public Transform symbolTransform;
 		public Color shrineEffectColor;
 		public int maxUses = 1;
+
+		public List<CharacterMaster> playersToRespawn = new List<CharacterMaster>();
+
+		[SyncVar]
 		public int timesUsed = 0;
-		public bool scalePerUse;
-		public float scaleMultiplier = 1.5f;
+
+		//[SyncVar]
+		//public bool scalePerUse;
+		//public float scaleMultiplier = 1.5f;
 		public float wait = 2f;
+
+		[SyncVar]
 		public float stopwatch;
 		public PurchaseInteraction purchaseInteraction;
+
+		[SyncVar]
 		public bool inUse = false;
+
+		[SyncVar]
 		public bool isAvailable = true;
-		
+
+
 		public void Awake()
         {
 			purchaseInteraction = GetComponent<PurchaseInteraction>();
 
-			//BetterShrines.Print("Scaled cost: "+GetDifficultyScaledCost(BetterShrines.fallenShrineBaseCost.Value));
+			purchaseInteraction.costType = (CostTypeIndex)CostTypes.getCostTypeIndex(MoreShrines.costTypeDefShrineFallen);
 
-			//purchaseInteraction.Networkcost = GetDifficultyScaledCost(BetterShrines.fallenShrineBaseCost.Value);
+			purchaseInteraction.onPurchase.AddListener((interactor) =>
+			{
+				AddShrineStack(interactor);
+			});
+
+            On.RoR2.CharacterMaster.RespawnExtraLife += CharacterMaster_RespawnExtraLife;
 		}
 
-		public void Update()
+        private void CharacterMaster_RespawnExtraLife(On.RoR2.CharacterMaster.orig_RespawnExtraLife orig, CharacterMaster self)
+        {
+			orig(self);
+
+			if (playersToRespawn.Contains(self))
+			{
+				playersToRespawn.Remove(self);
+				var characterBody = self.GetBody();
+
+				CharacterBody component = characterBody;
+				if (component)
+				{
+					var count = component.GetBuffCount(InitBuffs.maxHPDownStage);
+					var added_count = (int)Mathf.Ceil(((100f - (float)component.GetBuffCount(InitBuffs.maxHPDownStage)) / 100f) * (float)purchaseInteraction.cost);
+					//Debug.Log(count + added_count);
+					if (count + added_count < 100)
+					{
+
+
+
+						for (var i = 0; i < added_count; i++)
+						{
+							component.AddBuff(InitBuffs.maxHPDownStage);
+						}
+					}
+				}
+			}
+		}
+
+        public void Update()
         {
 			//BetterShrines.Print(Run.instance.difficultyCoefficient);
+			
 			if (timesUsed < maxUses)
 			{
 				if (inUse)
@@ -53,20 +102,21 @@ namespace Evaisa.BetterShrines
 						
 						symbolTransform.gameObject.SetActive(true);
 						isAvailable = true;
-						if (NetworkServer.active)
-						{
-							purchaseInteraction.SetAvailable(true);
-						}
+						//if (NetworkServer.active)
+						//{
+							//purchaseInteraction.SetAvailable(true);
+						//	Debug.Log("Someone is dead.");
+						//}
 					}
 					else
 					{
 						symbolTransform.gameObject.SetActive(false);
 						isAvailable = false;
-						if (NetworkServer.active)
-						{
-							purchaseInteraction.SetAvailable(false);
-						}
-
+						//if (NetworkServer.active)
+						//{
+							//purchaseInteraction.SetAvailable(false);
+						//	Debug.Log("No one is dead.");
+						//}
 					}
 				}
             }
@@ -79,19 +129,33 @@ namespace Evaisa.BetterShrines
 					purchaseInteraction.SetAvailable(false);
 				}
 			}
-
+			
 		}
-		
+
+		[ClientRpc]
+		public void RpcAddShrineStackClient()
+		{
+			symbolTransform.gameObject.SetActive(false);
+		}
+
+
 		public void AddShrineStack(Interactor interactor)
 		{
-			BetterShrines.Print(interactor.name + " has used a Shrine of the Fallen");
+			RpcAddShrineStackClient();
+			if (!NetworkServer.active)
+			{
+				Debug.LogWarning("[Server] function 'System.Void RoR2.ShrineCombatBehavior::AddShrineStack(RoR2.Interactor)' called on client");
+				return;
+			}
+
+			MoreShrines.Print(interactor.name + " has used a Shrine of the Fallen");
 			if (IsAnyoneDead())
 			{
 				timesUsed += 1;
 				stopwatch = wait;
 				inUse = true;
 				whoInteracted = interactor;
-				symbolTransform.gameObject.SetActive(false);
+				
 				EffectManager.SpawnEffect(Resources.Load<GameObject>("Prefabs/Effects/ShrineUseEffect"), new EffectData
 				{
 					origin = base.transform.position,
@@ -101,22 +165,27 @@ namespace Evaisa.BetterShrines
 				}, true);
 
 				
-
+				/*
 				if (scalePerUse)
                 {
 					purchaseInteraction.Networkcost = (int)Math.Round(purchaseInteraction.cost * scaleMultiplier);
 					purchaseInteraction.cost = (int)Math.Round(purchaseInteraction.cost * scaleMultiplier);
                 }
-
+				*/
 
 
 				if (NetworkServer.active)
 				{
-					BetterShrines.Print("attempting to revive user.");
+					MoreShrines.Print("attempting to revive user.");
 					var player = getRandomDeadPlayer();
 					if (player != null)
 					{
-						player.master.RespawnExtraLife();
+
+						//player.body.AddBuff
+						
+						playersToRespawn.Add(player.master);
+						player.GetComponent<CharacterMaster>().RespawnExtraLife();
+
 						Chat.SendBroadcastChat(new Chat.SubjectFormatChatMessage
 						{
 							subjectAsCharacterBody = interactor.GetComponent<CharacterBody>(),
@@ -131,10 +200,10 @@ namespace Evaisa.BetterShrines
 			}
 		}
 
-		public bool IsAnyoneDead()
+		public static bool IsAnyoneDead()
         {
 			var isAnyoneDead = false;
-			PlayerCharacterMasterController.instances.ForEachTry(instance =>
+			foreach(var instance in PlayerCharacterMasterController.instances)
 			{
                 if (instance.master)
                 {
@@ -144,14 +213,14 @@ namespace Evaisa.BetterShrines
 						isAnyoneDead = true;
                     }
                 }
-			});
+			};
 			return isAnyoneDead;
         }
 
 		public PlayerCharacterMasterController getRandomDeadPlayer()
         {
 			var deadPlayers = new List<PlayerCharacterMasterController>();
-			PlayerCharacterMasterController.instances.ForEachTry(instance =>
+			foreach(var instance in PlayerCharacterMasterController.instances)
 			{
 				if (instance.master)
 				{
@@ -161,12 +230,12 @@ namespace Evaisa.BetterShrines
 						deadPlayers.Add(instance);
 					}
 				}
-			});
+			};
 			if(deadPlayers.Count == 0)
             {
 				return null;
             }
-			var player = BetterShrines.EvaRng.NextElementUniform<PlayerCharacterMasterController>(deadPlayers);
+			var player = MoreShrines.EvaRng.NextElementUniform<PlayerCharacterMasterController>(deadPlayers);
 			return player;
 		}
 
