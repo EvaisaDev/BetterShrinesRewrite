@@ -749,7 +749,7 @@ namespace Evaisa.MoreShrines
 			//Debug.Log(shrinePrefab);
 
 			var mdlBase = shrinePrefab.transform.Find("Base").Find("mdlShrineHeresy");
-
+			//mdlBase.GetComponent<MeshRenderer>().material.mainTexture = Resources.Load<Texture2D>("Assets/Texture2D/texShrineBloodDiffuse.png");
 
 			mdlBase.GetComponent<MeshRenderer>().material.shader = Shader.Find("Hopoo Games/Deferred/Standard");
 			mdlBase.GetComponent<MeshRenderer>().material.color = new Color(1.0f, 0.8549f, 0.7647f, 1.0f);
@@ -799,9 +799,9 @@ namespace Evaisa.MoreShrines
 			//Debug.Log(shrinePrefab);
 
 			var mdlBase = shrinePrefab.transform.Find("Base").Find("mdlShrineDisorder");
+			//mdlBase.transform.Find("ShrineDisorderMesh").GetComponent<MeshRenderer>().material.mainTexture = Resources.Load<Texture2D>("Assets/Texture2D/texShrineRestackDiffuse.png");
 
 
-			
 			foreach (MeshRenderer renderer in mdlBase.transform.GetComponentsInChildren<MeshRenderer>()) {
 				renderer.material.shader = Shader.Find("Hopoo Games/Deferred/Standard");
 				renderer.material.color = new Color(1.0f, 0.8549f, 0.7647f, 1.0f);

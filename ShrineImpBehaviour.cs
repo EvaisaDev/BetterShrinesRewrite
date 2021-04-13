@@ -189,16 +189,16 @@ namespace Evaisa.MoreShrines
 
 					foreach (var imp in combatSquad.membersList)
                     {
-						Debug.Log("Rawr 1");
+						//Debug.Log("Rawr 1");
                         if (imp.gameObject)
                         {
-							Debug.Log("Rawr 2");
+							//Debug.Log("Rawr 2");
 							if (imp.gameObject.GetComponent<TinyImp>())
 							{
-								Debug.Log("Rawr 3");
+								//Debug.Log("Rawr 3");
 								if (!imp.gameObject.GetComponent<TinyImp>().hasMarker)
 								{
-									Debug.Log("A imp was marked!");
+									MoreShrines.Print("A imp was marked!");
 									markImp(imp);
 									imp.gameObject.GetComponent<TinyImp>().hasMarker = true;
 								}
@@ -216,12 +216,6 @@ namespace Evaisa.MoreShrines
 			objectiveString = string.Format(Language.GetString(objectiveBaseToken), impColorHex, killedImpCount, impsSpawned, this.timeLeft);
 			objectiveInfo = Objectives.AddObjective(objectiveString, true);
 			symbolTransform.gameObject.SetActive(false);
-			
-			combatDirector.monsterCredit += monsterCredit;
-			combatDirector.maximumNumberToSpawnBeforeSkipping = impCount;
-			combatDirector.OverrideCurrentMonsterCard(directorCard);
-			combatDirector.monsterSpawnTimer = 0f;
-			
 		}
 
 
@@ -233,7 +227,7 @@ namespace Evaisa.MoreShrines
 				Debug.LogWarning("[Server] function 'System.Void RoR2.ShrineCombatBehavior::AddShrineStack(RoR2.Interactor)' called on client");
 				return;
 			}
-			ImpShrineActivation(interactor, monsterCredit);
+			ImpShrineActivation(interactor, monsterCredit, directorCard);
 			EffectManager.SpawnEffect(Resources.Load<GameObject>("Prefabs/Effects/ShrineUseEffect"), new EffectData
 			{
 				origin = transform.position,
@@ -266,10 +260,14 @@ namespace Evaisa.MoreShrines
 			gameObject.AddComponent<ImpMarkerKiller>();
 		}
 
-		public void ImpShrineActivation(Interactor interactor, float monsterCredit)
+		public void ImpShrineActivation(Interactor interactor, float monsterCredit, DirectorCard chosenDirectorCard)
 		{
-			CharacterMaster component = directorCard.spawnCard.prefab.GetComponent<CharacterMaster>();
 			combatDirector.enabled = true;
+			combatDirector.monsterCredit += monsterCredit;
+			combatDirector.maximumNumberToSpawnBeforeSkipping = impCount;
+			combatDirector.OverrideCurrentMonsterCard(chosenDirectorCard);
+			combatDirector.monsterSpawnTimer = 0f;
+			CharacterMaster component = chosenDirectorCard.spawnCard.prefab.GetComponent<CharacterMaster>();
 			if (component)
 			{
 				CharacterBody component2 = component.bodyPrefab.GetComponent<CharacterBody>();

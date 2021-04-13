@@ -155,3 +155,4 @@ NetworkWeaver/BetterShrines.dll.prepatch
 .vs/MoreShrines/DesignTimeBuild/.dtbcache.v2
 MoreShrines.sln
 MoreShrines.csproj
+obj/Debug/netstandard2.0/MoreShrines.csprojAssemblyReference.cache
