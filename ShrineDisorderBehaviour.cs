@@ -18,7 +18,15 @@ namespace Evaisa.MoreShrines
 
 		public PurchaseInteraction purchaseInteraction;
 
-		public void Awake()
+        private ItemTier[] tiersToCheck = new[] {
+            ItemTier.Tier1,
+            ItemTier.Tier2,
+            ItemTier.Tier3,
+            ItemTier.Lunar,
+            ItemTier.Boss,
+        };
+
+        public void Awake()
         {
 			purchaseInteraction = GetComponent<PurchaseInteraction>();
             purchaseInteraction.costType = CostTypes.getCostTypeIndex(MoreShrines.costTypeDefShrineDisorder);
@@ -56,7 +64,7 @@ namespace Evaisa.MoreShrines
             var characterBody = interactor.GetComponent<CharacterBody>();
             if (characterBody && characterBody.inventory)
             {
-                foreach (ItemTier tier in Enum.GetValues(typeof(ItemTier)))
+                foreach (ItemTier tier in tiersToCheck)
                 {
                     FlattenInventory(characterBody.inventory, tier);
                 }
@@ -73,14 +81,13 @@ namespace Evaisa.MoreShrines
                 scale = 1f,
                 color = shrineEffectColor
             }, true);
-            symbolTransform.gameObject.SetActive(false);
         }
 
         public void FlattenInventory(Inventory inventory, ItemTier itemTier)
         {
-            var itemDefs = Utils.ItemDefsFromTier(itemTier);
+            var itemDefs = Utils.ItemDefsFromTier(itemTier, true);
             int[] itemCounts = new int[itemDefs.Length];
-            int lowestCount = 0;
+            int lowestCount = int.MaxValue;
             foreach (var itemDef in itemDefs)
             {
                 lowestCount = Math.Min(inventory.GetItemCount(itemDef), lowestCount);
@@ -105,24 +112,27 @@ namespace Evaisa.MoreShrines
             }
 
             int budgetForAll = 0;
+
             while (itemBudget > 0)
             {
                 if (itemChoices.Count > 0)
                 {
                     itemBudget--;
                     var randomIndex = itemChoices.EvaluteToChoiceIndex(UnityEngine.Random.value);
-                    
+
                     itemCounts[Array.IndexOf(itemDefs, itemChoices.GetChoice(randomIndex).value)]++;
                     itemChoices.RemoveChoice(randomIndex);
                 }
                 else
                 {
+
                     budgetForAll = itemBudget / itemDefs.Length;
                     itemBudget -= budgetForAll * itemDefs.Length;
                     foreach (var itemDef in itemDefs)
                     {
                         itemChoices.AddChoice(itemDef, 1);
                     }
+
                 }
             }
             for (int i = 0; i < itemDefs.Length; i++)

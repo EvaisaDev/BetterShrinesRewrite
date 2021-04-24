@@ -18,7 +18,7 @@ namespace Evaisa.MoreShrines
 		public CombatSquad combatSquad;
 		public Color shrineEffectColor;
 		public Transform symbolTransform;
-		public int baseImpCount = 8;
+		public int baseImpCount = 5;
 		public float baseCredit = 20;
 		public DirectorCard directorCard;
 
@@ -63,6 +63,10 @@ namespace Evaisa.MoreShrines
 			combatSquad = GetComponent<CombatSquad>();
 			instances.Add(this);
 
+			//combatDirector.eliteBias = 10f;
+			combatDirector.shouldSpawnOneWave = false;
+
+
 			if (NetworkServer.active)
 			{
 				purchaseInteraction.onPurchase.AddListener((interactor) =>
@@ -84,47 +88,75 @@ namespace Evaisa.MoreShrines
 					//RpcOnSpawnedClient(gameObject.GetComponent<NetworkBehaviour>().netId);
 				});
 			}
-			
-			/*
-			RoR2.UI.ObjectivePanelController.collectObjectiveSources += (master, list) =>
-			{
-				if (active)
-				{
-					sourceDescriptor = new ObjectivePanelController.ObjectiveSourceDescriptor
-					{
-						source = this,
-						master = master,
-						objectiveType = typeof(ShrineImpObjective)
-					};
-					sourceDescriptorList = list;
-					list.Add(sourceDescriptor);
-				}
-			};
-			*/
+			gameObject.GetComponent<CustomDirector>().countToSpawn = impCount;
 
-			//AddObjectiveSource(this, typeof(ShrineImpObjective), isActive);
+			//On.RoR2.CombatDirector.PrepareNewMonsterWave += CombatDirector_PrepareNewMonsterWave;
+			On.RoR2.TeleporterInteraction.AddShrineStack += TeleporterInteraction_AddShrineStack;
 		}
 
+        private void TeleporterInteraction_AddShrineStack(On.RoR2.TeleporterInteraction.orig_AddShrineStack orig, TeleporterInteraction self)
+        {
+			orig(self);
+			if (objectiveInfo)
+			{
+				MoreShrines.objectives.Remove(objectiveInfo);
+				Objectives.RemoveObjective(objectiveInfo);
+			}
+		}
 
 		/*
-        private void CombatSquad_onMemberDiscovered(CharacterMaster obj)
-        {
-			Debug.Log("Imp discovered, owo.");
-        }
-		*/
+        private void CombatDirector_PrepareNewMonsterWave(On.RoR2.CombatDirector.orig_PrepareNewMonsterWave orig, CombatDirector self, DirectorCard monsterCard)
+		{
+			orig(self, monsterCard);
+			if (self.gameObject.GetComponent<ShrineImpBehaviour>())
+			{
 
-        private int impCount 
+				self.currentMonsterCard = monsterCard;
+
+				self.ResetEliteType();
+
+				self.currentActiveEliteTier = CombatDirector.eliteTiers[0];
+
+				if (!(self.currentMonsterCard.spawnCard as CharacterSpawnCard).noElites)
+				{
+					for (int i = 1; i < CombatDirector.eliteTiers.Length; i++)
+					{
+						CombatDirector.EliteTierDef eliteTierDef = CombatDirector.eliteTiers[i];
+						if (eliteTierDef.isAvailable(self.currentMonsterCard.spawnCard.eliteRules))
+						{
+
+							float num = eliteTierDef.costMultiplier * self.eliteBias;
+							float num1 = (float)(self.currentMonsterCard.cost * impCount - 1) + (self.currentMonsterCard.cost * num);
+							if (num1 < monsterCredit)
+							{
+								if ((float)self.currentMonsterCard.cost * num < self.monsterCredit)
+								{
+									self.currentActiveEliteTier = eliteTierDef;
+								}
+							}
+						}
+					}
+				}
+
+				self.currentActiveEliteDef = self.rng.NextElementUniform<EliteDef>(self.currentActiveEliteTier.eliteTypes);
+
+				self.spawnCountInCurrentWave = 0;
+			}
+
+		}*/
+
+		private int impCount 
 		{
 			get {
 				var playerCount = Run.instance.participatingPlayerCount;
 				var runDifficulty = DifficultyCatalog.GetDifficultyDef(Run.instance.selectedDifficulty).scalingValue;
 				var difficulty = Run.instance.difficultyCoefficient;
 
-				var count = Math.Min((int)Math.Round((float)(baseImpCount - 1) + (playerCount * runDifficulty)), 17);
+				var count = Math.Min((int)Math.Round((float)(baseImpCount - 1) + (playerCount * runDifficulty)), 15);
 
 				if (MoreShrines.impCountScale.Value)
 				{
-					count += (int) Math.Round(difficulty* 1.3f);
+					count += (int) Math.Round(difficulty * 1.1f);
 				}
 
 
@@ -150,14 +182,7 @@ namespace Evaisa.MoreShrines
 			
 			failedShrine = true;
 			Objectives.RemoveObjective(objectiveInfo);
-			if (NetworkServer.active)
-			{
-				List<CharacterMaster> members = new List<CharacterMaster>();
-				for (int i = combatSquad.membersList.Count - 1; i >= 0; i--)
-				{
-					combatSquad.membersList[i].TrueKill();
-				}
-			}
+
 		}
 
 
@@ -166,7 +191,10 @@ namespace Evaisa.MoreShrines
 		{
 			if (active)
             {
-                if (NetworkServer.active)
+				
+				combatDirector.monsterSpawnTimer = 0f;
+				combatDirector.currentMonsterCard = null;
+				if (NetworkServer.active)
                 {
 					timeLeftUnrounded -= Time.deltaTime;
 					timeLeft = (int)Math.Round(timeLeftUnrounded);
@@ -175,6 +203,12 @@ namespace Evaisa.MoreShrines
 						active = false;
 						timeLeft = 0;
 						RpcHandleLoss();
+						failedShrine = true;
+
+						for (int i = combatSquad.membersList.Count - 1; i >= 0; i--)
+						{
+							combatSquad.membersList[i].TrueKill();
+						}
 					}
 				}
 
@@ -182,10 +216,13 @@ namespace Evaisa.MoreShrines
 				if (combatSquad.memberCount > 0)
                 {
 					var killedImpCount = impsSpawned - impsAlive;
-					objectiveString = string.Format(Language.GetString(objectiveBaseToken), impColorHex, killedImpCount, impsSpawned, this.timeLeft);
+					if (!Application.isBatchMode)
+					{
+						objectiveString = string.Format(Language.GetString(objectiveBaseToken), impColorHex, killedImpCount, impsSpawned, this.timeLeft);
 
-					objectiveInfo.title = objectiveString;
-					objectiveInfo.show = true;
+						objectiveInfo.title = objectiveString;
+						objectiveInfo.show = true;
+					}
 
 					foreach (var imp in combatSquad.membersList)
                     {
@@ -215,6 +252,7 @@ namespace Evaisa.MoreShrines
 			var killedImpCount = impsSpawned - impsAlive;
 			objectiveString = string.Format(Language.GetString(objectiveBaseToken), impColorHex, killedImpCount, impsSpawned, this.timeLeft);
 			objectiveInfo = Objectives.AddObjective(objectiveString, true);
+			MoreShrines.objectives.Add(objectiveInfo);
 			symbolTransform.gameObject.SetActive(false);
 		}
 
@@ -364,9 +402,12 @@ namespace Evaisa.MoreShrines
 				PickupIndex pickupIndex = MoreShrines.EvaRng.NextElementUniform<PickupIndex>(list);
 				int num = 1;
 
-				if (!BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.funkfrog_sipondo.sharesuite"))
+				if (MoreShrines.dropItemForEveryPlayer.Value)
 				{
-					num *= participatingPlayerCount;
+					if (!BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.funkfrog_sipondo.sharesuite") && !BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.funkfrog_sipondo.sharesuite-r2"))
+					{
+						num *= participatingPlayerCount;
+					}
 				}
 
 				num += MoreShrines.extraItemCount.Value;

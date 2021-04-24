@@ -20,6 +20,7 @@ using RoR2.Navigation;
 using BetterAPI;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
+using Random = UnityEngine.Random;
 
 [module: UnverifiableCode]
 [assembly: SecurityPermission(SecurityAction.RequestMinimum, SkipVerification = true)]
@@ -30,9 +31,9 @@ namespace Evaisa.MoreShrines
 	[BepInPlugin(ModGuid, ModName, ModVer)]
 	public class MoreShrines : BaseUnityPlugin
     {
-		private const string ModVer = "1.0.0";
-		private const string ModName = "BetterShrines";
-		private const string ModGuid = "com.Evaisa.MoreShrines";
+		private const string ModVer = "1.1.2";
+		private const string ModName = "More Shrines";
+		private const string ModGuid = "com.evaisa.moreshrines";
 
 		public static MoreShrines instance;
 
@@ -44,18 +45,47 @@ namespace Evaisa.MoreShrines
 		public static Interactables.InteractableInfo fallenShrineInteractableInfo;
 		public static Interactables.InteractableInfo disorderShrineInteractableInfo;
 		public static Interactables.InteractableInfo heresyShrineInteractableInfo;
+		public static Interactables.InteractableInfo wispShrineInteractableInfo;
 
 
+		public static ConfigEntry<bool> impShrineEnabled;
+		public static ConfigEntry<int> impShrineWeight;
 		public static ConfigEntry<bool> impCountScale;
 		public static ConfigEntry<int> impShrineTime;
 		public static ConfigEntry<bool> itemRarityBasedOnSpeed;
+		public static ConfigEntry<bool> dropItemForEveryPlayer;
+		//public static ConfigEntry<bool> allowElites;
 		public static ConfigEntry<int> extraItemCount;
+
+		public static ConfigEntry<bool> fallenShrineEnabled;
+		public static ConfigEntry<int> fallenShrineWeight;
+		public static ConfigEntry<int> fallenShrineHPPenalty;
+		public static ConfigEntry<bool> fallenShrineMoney;
+		public static ConfigEntry<int> fallenShrineMoneyCost;
+		//public static ConfigEntry<bool> fallenShrineSpawnAtleastOne;
+
+		public static ConfigEntry<bool> disorderShrineEnabled;
+		public static ConfigEntry<int> disorderShrineWeight;
+
+		public static ConfigEntry<bool> heresyShrineEnabled;
+		public static ConfigEntry<int> heresyShrineWeight;
+
+		public static ConfigEntry<bool> wispShrineEnabled;
+		public static ConfigEntry<bool> wispShrineScaleDifficulty;
+		public static ConfigEntry<int> wispShrineWeight;
 
 		public static CostTypeDef costTypeDefShrineFallen;
 		public static CostTypeDef costTypeDefShrineDisorder;
 		public static CostTypeDef costTypeDefShrineHeresy;
+		public static CostTypeDef costTypeDefWispWhite;
+		public static CostTypeDef costTypeDefWispGreen;
+		public static CostTypeDef costTypeDefWispRed;
 
-		public static bool debugMode = true;
+		public static GameObject debugPrefab;
+
+		public static bool debugMode = false;
+
+		public static List<Objectives.ObjectiveInfo> objectives = new List<Objectives.ObjectiveInfo>();
 
 		public MoreShrines ()
         {
@@ -68,28 +98,59 @@ namespace Evaisa.MoreShrines
 
 			EvaRng = new Xoroshiro128Plus((ulong)cur_time);
 
-			InitBuffs.Add();
-
-			CreateCostDefShrineFallen();
-			CreateCostDefShrineDisorder();
-			CreateCostDefShrineHeresy();
-
 			RegisterConfig();
 			RegisterLanguageTokens();
 
+			InitBuffs.Add();
+
+			if (fallenShrineMoney.Value)
+			{
+				CreateCostDefShrineFallenAlt();
+			}
+			else {
+				CreateCostDefShrineFallen();
+			}
+
+
+			CreateCostDefShrineDisorder();
+			CreateCostDefShrineHeresy();
+			CreateCostDefWispWhite();
+			CreateCostDefWispGreen();
+			CreateCostDefWispRed();
+
 			GenerateTinyImp();
 
-			GenerateFallenShrine();
-			GenerateDisorderShrine();
-			GenerateHeresyShrine();
-			GenerateImpShrine();
+			if (fallenShrineEnabled.Value)
+			{
+				GenerateFallenShrine();
+			}
+			if (disorderShrineEnabled.Value)
+			{
+				GenerateDisorderShrine();
+			}
+			if (heresyShrineEnabled.Value)
+			{
+				GenerateHeresyShrine();
+			}
+			if (impShrineEnabled.Value)
+			{
+				GenerateImpShrine();
+			}
+			if (wispShrineEnabled.Value)
+			{
+				GenerateWispShrine();
+			}
 
 			On.RoR2.Artifacts.SwarmsArtifactManager.OnSpawnCardOnSpawnedServerGlobal += SwarmsArtifactManager_OnSpawnCardOnSpawnedServerGlobal;
 
+
 			if (debugMode)
 			{
-				On.RoR2.Networking.GameNetworkManager.OnClientConnect += (self, user, t) => { };
+				generateDebugObject();
 
+				
+				On.RoR2.Networking.GameNetworkManager.OnClientConnect += (self, user, t) => { };
+				
 
 				On.RoR2.CombatDirector.AttemptSpawnOnTarget += (orig, self, spawnTarget, placementMode) =>
 				{
@@ -102,12 +163,202 @@ namespace Evaisa.MoreShrines
 						return orig(self, spawnTarget, placementMode);
 					}
 				};
+				
+				
+				
 			
 				On.RoR2.SceneDirector.GenerateInteractableCardSelection += SceneDirector_GenerateInteractableCardSelection;
+
+                On.RoR2.Stage.Start += Stage_Start;
+
 			}
+
 		}
 
+        private void Stage_Start(On.RoR2.Stage.orig_Start orig, Stage self)
+        {
+			orig(self);
+			DebugScript.instances.Clear();
+			foreach(var objective in objectives)
+            {
+				Objectives.RemoveObjective(objective);
+            }
+			objectives.Clear();
+		}
 
+        void Update()
+        {
+			if (debugMode)
+			{
+
+				if (Run.instance && NetworkServer.active && debugPrefab)
+				{
+					DebugScript.SpawnTheBehavioursOnClients();
+				}
+			
+				
+				//DebugCheats.HandleCheats();
+			}
+		}
+        public void generateDebugObject()
+        {
+			var gameObject = new GameObject("DebugObjectMoreShrines");
+			gameObject.AddComponent<NetworkIdentity>();
+			gameObject.GetComponent<NetworkIdentity>().localPlayerAuthority = true;
+			debugPrefab = BetterAPI.Utils.PrefabFromGameObject(gameObject);
+			debugPrefab.AddComponent<DebugScript>();
+			BetterAPI.NetworkedPrefabs.Add(debugPrefab);
+
+			
+		}
+
+		public void CreateCostDefWispWhite()
+		{
+			costTypeDefWispWhite = new CostTypeDef();
+			costTypeDefWispWhite.costStringFormatToken = "COST_ITEM_FORMAT";
+			//costTypeDefShrineHeresy.saturateWorldStyledCostString = false;
+			//costTypeDefShrineHeresy.darkenWorldStyledCostString = true;
+			costTypeDefWispWhite.isAffordable = delegate (CostTypeDef costTypeDef, CostTypeDef.IsAffordableContext context)
+			{
+				CharacterBody characterBody = context.activator.GetComponent<CharacterBody>();
+				if (characterBody)
+				{
+					var inventory = characterBody.inventory;
+					if (inventory)
+					{
+						return inventory.GetTotalItemCountOfTier(ItemTier.Tier1) > 0;
+					}
+				}
+				return false;
+			};
+			costTypeDefWispWhite.payCost = delegate (CostTypeDef costTypeDef, CostTypeDef.PayCostContext context)
+			{
+				CharacterBody characterBody = context.activator.GetComponent<CharacterBody>();
+				if (characterBody)
+				{
+					var inventory = characterBody.inventory;
+
+					var items = new List<ItemDef>();
+
+					foreach(var index in inventory.itemAcquisitionOrder)
+                    {
+						if(ItemCatalog.GetItemDef(index).tier == ItemTier.Tier1)
+                        {
+							items.Add(ItemCatalog.GetItemDef(index));
+                        }
+                    }
+
+					var item = items[Random.Range(0, items.Count)];
+
+					context.purchasedObject.GetComponent<ShrineWispBehaviour>().wispItem = item;
+
+					inventory.RemoveItem(item, 1);
+
+					
+				}
+			};
+			costTypeDefWispWhite.colorIndex = ColorCatalog.ColorIndex.Tier1Item;
+			CostTypes.Add(costTypeDefWispWhite);
+		}
+
+		public void CreateCostDefWispGreen()
+		{
+			costTypeDefWispGreen = new CostTypeDef();
+			costTypeDefWispGreen.costStringFormatToken = "COST_ITEM_FORMAT";
+			costTypeDefWispGreen.saturateWorldStyledCostString = true;
+			//costTypeDefShrineHeresy.darkenWorldStyledCostString = true;
+			costTypeDefWispGreen.isAffordable = delegate (CostTypeDef costTypeDef, CostTypeDef.IsAffordableContext context)
+			{
+				CharacterBody characterBody = context.activator.GetComponent<CharacterBody>();
+				if (characterBody)
+				{
+					var inventory = characterBody.inventory;
+					if (inventory)
+					{
+						return inventory.GetTotalItemCountOfTier(ItemTier.Tier2) > 0;
+					}
+				}
+				return false;
+			};
+			costTypeDefWispGreen.payCost = delegate (CostTypeDef costTypeDef, CostTypeDef.PayCostContext context)
+			{
+				CharacterBody characterBody = context.activator.GetComponent<CharacterBody>();
+				if (characterBody)
+				{
+					var inventory = characterBody.inventory;
+
+					var items = new List<ItemDef>();
+
+					foreach (var index in inventory.itemAcquisitionOrder)
+					{
+						if (ItemCatalog.GetItemDef(index).tier == ItemTier.Tier2)
+						{
+							items.Add(ItemCatalog.GetItemDef(index));
+						}
+					}
+
+					var item = items[Random.Range(0, items.Count)];
+
+					context.purchasedObject.GetComponent<ShrineWispBehaviour>().wispItem = item;
+
+					inventory.RemoveItem(item, 1);
+
+
+				}
+			};
+			costTypeDefWispGreen.colorIndex = ColorCatalog.ColorIndex.Tier2Item;
+			CostTypes.Add(costTypeDefWispGreen);
+		}
+
+		public void CreateCostDefWispRed()
+		{
+			costTypeDefWispRed = new CostTypeDef();
+			costTypeDefWispRed.costStringFormatToken = "COST_ITEM_FORMAT";
+			costTypeDefWispRed.saturateWorldStyledCostString = true;
+			//costTypeDefShrineHeresy.darkenWorldStyledCostString = true;
+			costTypeDefWispRed.isAffordable = delegate (CostTypeDef costTypeDef, CostTypeDef.IsAffordableContext context)
+			{
+				CharacterBody characterBody = context.activator.GetComponent<CharacterBody>();
+				if (characterBody)
+				{
+					var inventory = characterBody.inventory;
+
+					if (inventory)
+					{
+						return inventory.GetTotalItemCountOfTier(ItemTier.Tier3) > 0;
+					}
+				}
+				return false;
+			};
+			costTypeDefWispRed.payCost = delegate (CostTypeDef costTypeDef, CostTypeDef.PayCostContext context)
+			{
+				CharacterBody characterBody = context.activator.GetComponent<CharacterBody>();
+				if (characterBody)
+				{
+					var inventory = characterBody.inventory;
+
+					var items = new List<ItemDef>();
+
+					foreach (var index in inventory.itemAcquisitionOrder)
+					{
+						if (ItemCatalog.GetItemDef(index).tier == ItemTier.Tier3)
+						{
+							items.Add(ItemCatalog.GetItemDef(index));
+						}
+					}
+
+					var item = items[Random.Range(0, items.Count)];
+
+					context.purchasedObject.GetComponent<ShrineWispBehaviour>().wispItem = item;
+
+					inventory.RemoveItem(item, 1);
+
+
+				}
+			};
+			costTypeDefWispRed.colorIndex = ColorCatalog.ColorIndex.Tier3Item;
+			CostTypes.Add(costTypeDefWispRed);
+		}
 
 		public void CreateCostDefShrineFallen()
         {
@@ -139,10 +390,44 @@ namespace Evaisa.MoreShrines
 					for (var i = 0; i < added_count; i++)
                     {
 						component.AddBuff(InitBuffs.maxHPDownStage);
+						//component.AddTimedBuff(RoR2Content.Buffs.AffixWhite, 0.1f);
 					}
 				}
 			};
 			costTypeDefShrineFallen.colorIndex = ColorCatalog.ColorIndex.Blood;
+			CostTypes.Add(costTypeDefShrineFallen);
+		}
+
+
+		public void CreateCostDefShrineFallenAlt()
+		{
+			costTypeDefShrineFallen = new CostTypeDef();
+			costTypeDefShrineFallen.costStringFormatToken = "COST_MONEY_FORMAT";
+			costTypeDefShrineFallen.saturateWorldStyledCostString = true;
+			costTypeDefShrineFallen.darkenWorldStyledCostString = false;
+			costTypeDefShrineFallen.isAffordable = delegate (CostTypeDef costTypeDef, CostTypeDef.IsAffordableContext context)
+			{
+				CharacterBody characterBody = context.activator.GetComponent<CharacterBody>();
+				if (characterBody)
+				{
+					CharacterMaster master = characterBody.master;
+					if (master)
+					{
+						return (ulong)master.money >= (ulong)((long)context.cost) && ShrineFallenBehaviour.IsAnyoneDead();
+					}
+				}
+				return false;
+			};
+			costTypeDefShrineFallen.payCost = delegate (CostTypeDef costTypeDef, CostTypeDef.PayCostContext context)
+			{
+
+				if (context.activatorMaster)
+				{
+					context.activatorMaster.money -= (uint)context.cost;
+				}
+
+			};
+			costTypeDefShrineFallen.colorIndex = ColorCatalog.ColorIndex.Money;
 			CostTypes.Add(costTypeDefShrineFallen);
 		}
 
@@ -234,35 +519,54 @@ namespace Evaisa.MoreShrines
 
 		public void RegisterLanguageTokens()
         {
-			//Languages.AddTokenString("SHRINE_CHANCE_PUNISHED_MESSAGE", "<style=cShrine>{0} offered to the shrine and was punished!</color>");
-			//Languages.AddTokenString("SHRINE_CHANCE_PUNISHED_MESSAGE_2P", "<style=cShrine>You offer to the shrine and are punished!</color>");
-			Languages.AddTokenString("SHRINE_IMP_USE_MESSAGE", "<style=cShrine>{0} inspected the vase and tiny imps appeared!</color>");
-			Languages.AddTokenString("SHRINE_IMP_USE_MESSAGE_2P", "<style=cShrine>You inspected the vase and tiny imps appeared!</color>");
-			Languages.AddTokenString("SHRINE_IMP_COMPLETED", "<style=cIsHealing>You killed all the imps and found some items!</color>");
-			Languages.AddTokenString("SHRINE_IMP_COMPLETED_2P", "<style=cIsHealing>{0} killed all the imps and found some items!</color>");
-			Languages.AddTokenString("SHRINE_IMP_FAILED", "<style=cIsHealth>You failed to kill all the imps in time!</color>");
-			Languages.AddTokenString("SHRINE_IMP_FAILED_2P", "<style=cIsHealth>{0} failed to kill all the imps in time!</color>");
+			//Languages.AddTokenString("SHRINE_CHANCE_PUNISHED_MESSAGE", "<style=cShrine>{0} offered to the shrine and was punished!</style>");
+			//Languages.AddTokenString("SHRINE_CHANCE_PUNISHED_MESSAGE_2P", "<style=cShrine>You offer to the shrine and are punished!</style>");
+			Languages.AddTokenString("SHRINE_IMP_USE_MESSAGE", "<style=cShrine>{0} inspected the vase and tiny imps appeared!</style>");
+			Languages.AddTokenString("SHRINE_IMP_USE_MESSAGE_2P", "<style=cShrine>You inspected the vase and tiny imps appeared!</style>");
+			Languages.AddTokenString("SHRINE_IMP_COMPLETED", "<style=cIsHealing>You killed all the imps and found some items!</style>");
+			Languages.AddTokenString("SHRINE_IMP_COMPLETED_2P", "<style=cIsHealing>{0} killed all the imps and found some items!</style>");
+			Languages.AddTokenString("SHRINE_IMP_FAILED", "<style=cIsHealth>You failed to kill all the imps in time!</style>");
+			Languages.AddTokenString("SHRINE_IMP_FAILED_2P", "<style=cIsHealth>{0} failed to kill all the imps in time!</style>");
 			Languages.AddTokenString("SHRINE_IMP_NAME", "Shrine of Imps");
 			Languages.AddTokenString("SHRINE_IMP_CONTEXT", "Inspect the vase.");
 			Languages.AddTokenString("SHRINE_FALLEN_NAME", "Shrine of the Fallen");
 			Languages.AddTokenString("SHRINE_FALLEN_CONTEXT", "Offer to Shrine of the Fallen");
-			Languages.AddTokenString("SHRINE_FALLEN_USED", "<style=cIsHealing>{0} offered to the Shrine of the Fallen and revived {1}!</color>");
-			Languages.AddTokenString("SHRINE_FALLEN_USED_2P", "<style=cIsHealing>You offer to the Shrine of the Fallen and revived {1}!</color>");
+			Languages.AddTokenString("SHRINE_FALLEN_USED", "<style=cIsHealing>{0} offered to the Shrine of the Fallen and revived {1}!</style>");
+			Languages.AddTokenString("SHRINE_FALLEN_USED_2P", "<style=cIsHealing>You offer to the Shrine of the Fallen and revived {1}!</style>");
 			Languages.AddTokenString("OBJECTIVE_KILL_TINY_IMPS", "Kill the <color={0}>tiny imps</color> ({1}/{2}) in {3} seconds!");
 			Languages.AddTokenString("COST_PERCENTMAXHEALTH_FORMAT", "{0}% MAX HP");
 			Languages.AddTokenString("COST_PERCENTMAXHEALTH_ROUND_FORMAT", "{0}% STAGE MAX HP");
 			Languages.AddTokenString("SHRINE_DISORDER_NAME", "Shrine of Disorder");
 			Languages.AddTokenString("SHRINE_DISORDER_CONTEXT", "Offer to Shrine of Disorder");
-			Languages.AddTokenString("SHRINE_DISORDER_USE_MESSAGE_2P", "<style=cShrine>Your items have been disorganized.</color>");
-			Languages.AddTokenString("SHRINE_DISORDER_USE_MESSAGE", "<style=cShrine>{0}'s items have been disorganized.</color>");
+			Languages.AddTokenString("SHRINE_DISORDER_USE_MESSAGE_2P", "<style=cShrine>Your order has been disturbed.</style>");
+			Languages.AddTokenString("SHRINE_DISORDER_USE_MESSAGE", "<style=cShrine>{0}'s order has been disturbed.</style>");
 			Languages.AddTokenString("SHRINE_HERESY_NAME", "Shrine of Heresy");
 			Languages.AddTokenString("SHRINE_HERESY_CONTEXT", "Offer to Shrine of Heresy");
-			Languages.AddTokenString("SHRINE_HERESY_USE_MESSAGE_2P", "<style=cShrine>You have taken a step towards heresy.</color>");
-			Languages.AddTokenString("SHRINE_HERESY_USE_MESSAGE", "<style=cShrine>{0} has taken a step towards heresy.</color>");
+			Languages.AddTokenString("SHRINE_HERESY_USE_MESSAGE_2P", "<style=cShrine>You have taken a step towards heresy.</style>");
+			Languages.AddTokenString("SHRINE_HERESY_USE_MESSAGE", "<style=cShrine>{0} has taken a step towards heresy.</style>");
+			Languages.AddTokenString("SHRINE_WISP_NAME", "Shrine of Wisps");
+			Languages.AddTokenString("SHRINE_WISP_CONTEXT", "Offer to the tree");
+			Languages.AddTokenString("SHRINE_WISP_ACCEPT_MESSAGE_2P", "<style=cShrine>The tree accepted your <color=#{1}>{2}</color> and ghostly Wisps appeared.</style>");
+			Languages.AddTokenString("SHRINE_WISP_ACCEPT_MESSAGE", "<style=cShrine>The tree accepted {0}'s <color=#{1}>{2}</color> and ghostly Wisps appeared.</style>");
+			Languages.AddTokenString("SHRINE_WISP_DENY_MESSAGE_2P", "<style=cIsDamage>The tree rejected your <color=#{1}>{2}</color> and angry Wisps appeared..</style>");
+			Languages.AddTokenString("SHRINE_WISP_DENY_MESSAGE", "<style=cIsDamage>The tree rejected {0}'s <color=#{1}>{2}</color> and angry Wisps appeared..</style>");
 		}
 
 		public void RegisterConfig()
         {
+			// Shrine of Imps
+			impShrineEnabled = Config.Bind<bool>(
+				"Shrine of Imps",
+				"Enable",
+				true,
+				"Enable the Shrine of Imps."
+			);
+			impShrineWeight = Config.Bind<int>(
+				"Shrine of Imps",
+				"Weight",
+				2,
+				"The spawn weight of this shrine, lower is more rare."
+			);
 			impCountScale = Config.Bind<bool>(
 				"Shrine of Imps",
 				"Count Scale",
@@ -281,11 +585,114 @@ namespace Evaisa.MoreShrines
 				true,
 				"Increase item rarity based on how fast you killed all the imps."
 			);
+			dropItemForEveryPlayer = Config.Bind<bool>(
+				"Shrine of Imps",
+				"Drop for every player",
+				true,
+				"Drop a item for every player in the session."
+			);
+			/*
+			allowElites = Config.Bind<bool>(
+				"Shrine of Imps",
+				"Allow elite imps",
+				true,
+				"Allow the shrine to spawn imps as elites."
+			);
+			*/
 			extraItemCount = Config.Bind<int>(
 				"Shrine of Imps",
 				"Extra Item Count",
 				0,
 				"Drop X extra items along with the base amount when a Shrine of Imps is beaten."
+			);
+
+			// Shrine of the Fallen
+			fallenShrineEnabled = Config.Bind<bool>(
+				"Shrine of the Fallen",
+				"Enable",
+				true,
+				"Enable the Shrine of the Fallen."
+			);
+			fallenShrineWeight = Config.Bind<int>(
+				"Shrine of the Fallen",
+				"Weight",
+				2,
+				"The spawn weight of this shrine, lower is more rare."
+			);
+			/*
+			fallenShrineSpawnAtleastOne = Config.Bind<bool>(
+				"Shrine of the Fallen",
+				"Always spawn",
+				false,
+				"Always spawn atleast one Shrine of the Fallen per stage."
+			);
+			*/
+			fallenShrineHPPenalty = Config.Bind<int>(
+				"Shrine of the Fallen",
+				"HP Penalty",
+				40,
+				"The max HP penalty the user takes for the rest of the stage when this shrine is used."
+			);
+			fallenShrineMoney = Config.Bind<bool>(
+				"Shrine of the Fallen",
+				"Use Money",
+				false,
+				"Shrine of the Fallen costs money rather than a HP penalty."
+			);
+			fallenShrineMoneyCost = Config.Bind<int>(
+				"Shrine of the Fallen",
+				"Money Base Cost",
+				300,
+				"The base cost for the shrine. (only applicable if 'Use Money' is enabled)"
+			);
+
+
+			// Shrine of Disorder
+			disorderShrineEnabled = Config.Bind<bool>(
+				"Shrine of Disorder",
+				"Enable",
+				true,
+				"Enable the Shrine of Disorder."
+			);
+			disorderShrineWeight = Config.Bind<int>(
+				"Shrine of Disorder",
+				"Weight",
+				1,
+				"The spawn weight of this shrine, lower is more rare."
+			);
+
+			// Shrine of Heresy
+			heresyShrineEnabled = Config.Bind<bool>(
+				"Shrine of Heresy",
+				"Enable",
+				true,
+				"Enable the Shrine of Heresy."
+			);
+			heresyShrineWeight = Config.Bind<int>(
+				"Shrine of Heresy",
+				"Weight",
+				1,
+				"The spawn weight of this shrine, lower is more rare."
+			);
+
+			// Shrine of Wisps
+			wispShrineEnabled = Config.Bind<bool>(
+				"Shrine of Wisps",
+				"Enable",
+				true,
+				"Enable the Shrine of Wisps."
+			);
+			wispShrineScaleDifficulty = Config.Bind<bool>(
+				"Shrine of Wisps",
+				"Scale Count With Difficulty",
+				true,
+				"Scale the number of wisps spawned with difficulty."
+			);
+			wispShrineWeight = Config.Bind<int>(
+				"Shrine of Wisps",
+				"Weight",
+				2,
+				"The spawn weight of this shrine, lower is more rare."
 			);
 		}
 
@@ -302,7 +709,7 @@ namespace Evaisa.MoreShrines
 			impCard.requiredFlags = NodeFlags.None;
 			impCard.sendOverNetwork = true;
 			impCard.forbiddenAsBoss = true;
-			impCard.noElites = false;
+			//impCard.noElites = !allowElites.Value;
 
 			var impPrefab = Utils.PrefabFromGameObject(impCardOriginal.prefab);
 			impPrefab.name = "TinyImpMaster";
@@ -363,236 +770,6 @@ namespace Evaisa.MoreShrines
 			impSpawnCard = impCard;
 		}
 
-		public void Update()
-		{
-            if (debugMode)
-            {
-
-				if (PlayerCharacterMasterController.instances.Count > 0)
-				{
-					PlayerCharacterMasterController localPlayer = PlayerCharacterMasterController.instances[0];
-					if (Input.GetKeyDown(KeyCode.F1))
-					{
-
-
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							InputBankTest localInputs = localPlayer.bodyInputs;
-
-							Ray myRay = new Ray(localInputs.aimOrigin, localInputs.aimDirection);
-
-							float maxDistance = 1000f;
-							RaycastHit raycastHit;
-
-							if (Util.CharacterRaycast(localBody.gameObject, myRay, out raycastHit, maxDistance, LayerIndex.world.mask | LayerIndex.defaultLayer.mask | LayerIndex.pickups.mask, QueryTriggerInteraction.Collide))
-							{
-
-								Vector3 hitPos = raycastHit.point;
-
-
-								SpawnCard chestCard = impShrineInteractableInfo.directorCard.spawnCard;
-								DirectorPlacementRule placementRule = new DirectorPlacementRule();
-								placementRule.placementMode = DirectorPlacementRule.PlacementMode.Direct;
-								GameObject chest = chestCard.DoSpawn(hitPos, Quaternion.Euler(new Vector3(0f, 0f, 0f)), new DirectorSpawnRequest(chestCard, placementRule, Run.instance.runRNG)).spawnedInstance;
-								chest.transform.eulerAngles = new Vector3(0, 0, 0);
-							}
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F2))
-					{
-
-
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							InputBankTest localInputs = localPlayer.bodyInputs;
-
-							Ray myRay = new Ray(localInputs.aimOrigin, localInputs.aimDirection);
-
-							float maxDistance = 1000f;
-							RaycastHit raycastHit;
-
-							if (Util.CharacterRaycast(localBody.gameObject, myRay, out raycastHit, maxDistance, LayerIndex.world.mask | LayerIndex.defaultLayer.mask | LayerIndex.pickups.mask, QueryTriggerInteraction.Collide))
-							{
-
-								Vector3 hitPos = raycastHit.point;
-
-
-								SpawnCard chestCard = fallenShrineInteractableInfo.directorCard.spawnCard;
-								DirectorPlacementRule placementRule = new DirectorPlacementRule();
-								placementRule.placementMode = DirectorPlacementRule.PlacementMode.Direct;
-								GameObject chest = chestCard.DoSpawn(hitPos, Quaternion.Euler(new Vector3(0f, 0f, 0f)), new DirectorSpawnRequest(chestCard, placementRule, Run.instance.runRNG)).spawnedInstance;
-								chest.transform.eulerAngles = new Vector3(0, 0, 0);
-							}
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F3))
-					{
-
-
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							InputBankTest localInputs = localPlayer.bodyInputs;
-
-							Ray myRay = new Ray(localInputs.aimOrigin, localInputs.aimDirection);
-
-							float maxDistance = 1000f;
-							RaycastHit raycastHit;
-
-							if (Util.CharacterRaycast(localBody.gameObject, myRay, out raycastHit, maxDistance, LayerIndex.world.mask | LayerIndex.defaultLayer.mask | LayerIndex.pickups.mask, QueryTriggerInteraction.Collide))
-							{
-
-								Vector3 hitPos = raycastHit.point;
-
-
-								SpawnCard chestCard = Resources.Load<SpawnCard>("spawncards/interactablespawncard/iscScrapper");
-								DirectorPlacementRule placementRule = new DirectorPlacementRule();
-								placementRule.placementMode = DirectorPlacementRule.PlacementMode.Direct;
-								GameObject chest = chestCard.DoSpawn(hitPos, Quaternion.Euler(new Vector3(0f, 0f, 0f)), new DirectorSpawnRequest(chestCard, placementRule, Run.instance.runRNG)).spawnedInstance;
-								chest.transform.eulerAngles = new Vector3(0, 0, 0);
-							}
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F4))
-					{
-
-
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							InputBankTest localInputs = localPlayer.bodyInputs;
-
-							Ray myRay = new Ray(localInputs.aimOrigin, localInputs.aimDirection);
-
-							float maxDistance = 1000f;
-							RaycastHit raycastHit;
-
-							if (Util.CharacterRaycast(localBody.gameObject, myRay, out raycastHit, maxDistance, LayerIndex.world.mask | LayerIndex.defaultLayer.mask | LayerIndex.pickups.mask, QueryTriggerInteraction.Collide))
-							{
-
-								Vector3 hitPos = raycastHit.point;
-
-
-								SpawnCard chestCard = Resources.Load<SpawnCard>("spawncards/interactablespawncard/iscChest1");
-								DirectorPlacementRule placementRule = new DirectorPlacementRule();
-								placementRule.placementMode = DirectorPlacementRule.PlacementMode.Direct;
-								GameObject chest = chestCard.DoSpawn(hitPos, Quaternion.Euler(new Vector3(0f, 0f, 0f)), new DirectorSpawnRequest(chestCard, placementRule, Run.instance.runRNG)).spawnedInstance;
-								chest.transform.eulerAngles = new Vector3(0, 0, 0);
-							}
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F5))
-					{
-
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-
-							localPlayer.GetComponent<CharacterMaster>().GiveMoney(1000);
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F6))
-					{
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							localBody.master.playerCharacterMasterController.networkUser.AwardLunarCoins(1);
-
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F7))
-					{
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							InputBankTest localInputs = localPlayer.bodyInputs;
-
-							Ray myRay = new Ray(localInputs.aimOrigin, localInputs.aimDirection);
-
-							float maxDistance = 1000f;
-							RaycastHit raycastHit;
-
-							if (Util.CharacterRaycast(localBody.gameObject, myRay, out raycastHit, maxDistance, LayerIndex.world.mask | LayerIndex.defaultLayer.mask | LayerIndex.pickups.mask, QueryTriggerInteraction.Collide))
-							{
-
-								Vector3 hitPos = raycastHit.point;
-
-
-								SpawnCard chestCard = Resources.Load<SpawnCard>("spawncards/interactablespawncard/iscShrineRestack");
-								DirectorPlacementRule placementRule = new DirectorPlacementRule();
-								placementRule.placementMode = DirectorPlacementRule.PlacementMode.Direct;
-								GameObject chest = chestCard.DoSpawn(hitPos, Quaternion.Euler(new Vector3(0f, UnityEngine.Random.Range(0, 360), 0f)), new DirectorSpawnRequest(chestCard, placementRule, Run.instance.runRNG)).spawnedInstance;
-								//chest.transform.eulerAngles = new Vector3(0, UnityEngine.Random.Range(0, 360), 0);
-							}
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F8))
-					{
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							InputBankTest localInputs = localPlayer.bodyInputs;
-
-							Ray myRay = new Ray(localInputs.aimOrigin, localInputs.aimDirection);
-
-							float maxDistance = 1000f;
-							RaycastHit raycastHit;
-
-							if (Util.CharacterRaycast(localBody.gameObject, myRay, out raycastHit, maxDistance, LayerIndex.world.mask | LayerIndex.defaultLayer.mask | LayerIndex.pickups.mask, QueryTriggerInteraction.Collide))
-							{
-
-								Vector3 hitPos = raycastHit.point;
-
-
-								SpawnCard chestCard = disorderShrineInteractableInfo.directorCard.spawnCard;
-								DirectorPlacementRule placementRule = new DirectorPlacementRule();
-								placementRule.placementMode = DirectorPlacementRule.PlacementMode.Direct;
-								GameObject chest = chestCard.DoSpawn(hitPos, Quaternion.Euler(new Vector3(0f, UnityEngine.Random.Range(0, 360), 0f)), new DirectorSpawnRequest(chestCard, placementRule, Run.instance.runRNG)).spawnedInstance;
-								//chest.transform.eulerAngles = new Vector3(0, UnityEngine.Random.Range(0, 360), 0);
-							}
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F9))
-					{
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							InputBankTest localInputs = localPlayer.bodyInputs;
-
-							Ray myRay = new Ray(localInputs.aimOrigin, localInputs.aimDirection);
-
-							float maxDistance = 1000f;
-							RaycastHit raycastHit;
-
-							if (Util.CharacterRaycast(localBody.gameObject, myRay, out raycastHit, maxDistance, LayerIndex.world.mask | LayerIndex.defaultLayer.mask | LayerIndex.pickups.mask, QueryTriggerInteraction.Collide))
-							{
-
-								Vector3 hitPos = raycastHit.point;
-
-
-								SpawnCard chestCard = heresyShrineInteractableInfo.directorCard.spawnCard;
-								DirectorPlacementRule placementRule = new DirectorPlacementRule();
-								placementRule.placementMode = DirectorPlacementRule.PlacementMode.Direct;
-								GameObject chest = chestCard.DoSpawn(hitPos, Quaternion.Euler(new Vector3(0f, UnityEngine.Random.Range(0, 360), 0f)), new DirectorSpawnRequest(chestCard, placementRule, Run.instance.runRNG)).spawnedInstance;
-								//chest.transform.eulerAngles = new Vector3(0, UnityEngine.Random.Range(0, 360), 0);
-							}
-						}
-					}
-					else if (Input.GetKeyDown(KeyCode.F10))
-					{
-						if (localPlayer.hasEffectiveAuthority && localPlayer.bodyInputs && localPlayer.body)
-						{
-							CharacterBody localBody = localPlayer.body;
-							localBody.master.TrueKill();
-
-						}
-					}
-				}
-			}
-		}
-
 		private void LocalNavigator_Update(On.RoR2.LocalNavigator.orig_Update orig, LocalNavigator self, float deltaTime)
 		{
 
@@ -617,15 +794,20 @@ namespace Evaisa.MoreShrines
 
 		private void SwarmsArtifactManager_OnSpawnCardOnSpawnedServerGlobal(On.RoR2.Artifacts.SwarmsArtifactManager.orig_OnSpawnCardOnSpawnedServerGlobal orig, SpawnCard.SpawnResult result)
 		{
+			var allow_handle = true;
 			if (result.spawnRequest.spawnCard as CharacterSpawnCard)
 			{
 				if (result.spawnedInstance.gameObject.GetComponent<CharacterMaster>())
 				{
 					if (!result.spawnedInstance.gameObject.GetComponent<TinyImp>())
 					{
-						orig(result);
+						allow_handle = false;
 					}
 				}
+			}
+			if (allow_handle)
+            {
+				orig(result);
 			}
 		}
 		/*
@@ -663,17 +845,6 @@ namespace Evaisa.MoreShrines
 			Debug.Log("[Better Shrines] "+printString);
         }
 
-        private bool PurchaseInteraction_CanBeAffordedByInteractor(On.RoR2.PurchaseInteraction.orig_CanBeAffordedByInteractor orig, PurchaseInteraction self, Interactor activator)
-        {
-            if (self.gameObject.GetComponent<ShrineFallenBehaviour>())
-            {
-				if(self.gameObject.GetComponent<ShrineFallenBehaviour>().isAvailable == false)
-                {
-					return false;
-                }
-            }
-			return orig(self, activator);
-        }
 
 		public void GenerateFallenShrine()
 		{
@@ -696,11 +867,41 @@ namespace Evaisa.MoreShrines
 			var symbolTransform = shrinePrefab.transform.Find("Symbol");
 
 			var purchaseInteraction = shrinePrefab.GetComponent<PurchaseInteraction>();
-			purchaseInteraction.Networkcost = 40;
-			purchaseInteraction.cost = 40;
+
+			var cost = fallenShrineHPPenalty.Value;
+
+			if(cost > 99)
+            {
+				cost = 99;
+            }else if(cost < 0)
+            {
+				cost = 0; 
+            }
+
+            if (fallenShrineMoney.Value)
+            {
+				purchaseInteraction.Networkcost = fallenShrineMoneyCost.Value;
+				purchaseInteraction.cost = fallenShrineMoneyCost.Value;
+			}
+            else
+            {
+				purchaseInteraction.Networkcost = cost;
+				purchaseInteraction.cost = cost;
+			}
+
+
+
 			purchaseInteraction.setUnavailableOnTeleporterActivated = false;
+
+			if (fallenShrineMoney.Value)
+			{
+				purchaseInteraction.automaticallyScaleCostWithDifficulty = true;
+			}
+            else
+            {
+				purchaseInteraction.automaticallyScaleCostWithDifficulty = false;
+			}
 			
-			purchaseInteraction.automaticallyScaleCostWithDifficulty = false;
 
 			//purchaseInteraction.cost;
 			//
@@ -717,16 +918,25 @@ namespace Evaisa.MoreShrines
 			var fallenBehaviour = shrinePrefab.AddComponent<ShrineFallenBehaviour>();
 			fallenBehaviour.shrineEffectColor = new Color(0.384f, 0.874f, 0.435f);
 			fallenBehaviour.symbolTransform = symbolTransform;
-			fallenBehaviour.maxUses = 2;
+			fallenBehaviour.maxUses = 1;
 			//fallenBehaviour.scalePerUse = true;
 
 			var interactable = new BetterAPI.Interactables.InteractableTemplate();
 			interactable.interactablePrefab = shrinePrefab;
 			interactable.slightlyRandomizeOrientation = false;
-			interactable.selectionWeight = 30000;
+			interactable.selectionWeight = fallenShrineWeight.Value;
 			interactable.interactableCategory = Interactables.Category.Shrines;
 			interactable.multiplayerOnly = true;
-
+			/*
+			if (fallenShrineSpawnAtleastOne.Value)
+			{
+				interactable.minimumCount = 1;
+            }
+            else
+            {
+				interactable.minimumCount = 0;
+			}
+			*/
 
 			fallenShrineInteractableInfo = Interactables.AddToStages(interactable, Interactables.Stages.Default);
 
@@ -774,7 +984,7 @@ namespace Evaisa.MoreShrines
 			var interactable = new BetterAPI.Interactables.InteractableTemplate();
 			interactable.interactablePrefab = shrinePrefab;
 			interactable.slightlyRandomizeOrientation = false;
-			interactable.selectionWeight = 30000;
+			interactable.selectionWeight = heresyShrineWeight.Value;
 			interactable.interactableCategory = Interactables.Category.Shrines;
 
 
@@ -830,7 +1040,7 @@ namespace Evaisa.MoreShrines
 			var interactable = new BetterAPI.Interactables.InteractableTemplate();
 			interactable.interactablePrefab = shrinePrefab;
 			interactable.slightlyRandomizeOrientation = false;
-			interactable.selectionWeight = 30000;
+			interactable.selectionWeight = disorderShrineWeight.Value;
 			interactable.interactableCategory = Interactables.Category.Shrines;
 
 
@@ -871,18 +1081,17 @@ namespace Evaisa.MoreShrines
 			var directorCard = new DirectorCard();
 			directorCard.spawnCard = impSpawnCard;
 			directorCard.selectionWeight = 10;
-			directorCard.spawnDistance = DirectorCore.MonsterSpawnDistance.Close;
+			directorCard.spawnDistance = DirectorCore.MonsterSpawnDistance.Standard;
 			directorCard.allowAmbushSpawn = true;
 			directorCard.preventOverhead = false;
 			directorCard.minimumStageCompletions = 0;
 
-			/*var combatDirector = shrinePrefab.GetComponent<CombatDirector>();
+			var combatDirector = shrinePrefab.GetComponent<CombatDirector>();
 			var cardSelection = ScriptableObject.CreateInstance<DirectorCardCategorySelection>();
 			cardSelection.AddCategory("Imps", 10);
 			cardSelection.AddCard(0, directorCard);
 
 			combatDirector.monsterCards = cardSelection;
-			combatDirector.monsterCredit = 300;*/
 
 
 			var impBehaviour = shrinePrefab.AddComponent<ShrineImpBehaviour>();
@@ -890,11 +1099,12 @@ namespace Evaisa.MoreShrines
 			impBehaviour.symbolTransform = symbolTransform;
 			impBehaviour.directorCard = directorCard;
 
+			var customDirector = shrinePrefab.AddComponent<CustomDirector>();
 
 			var interactable = new BetterAPI.Interactables.InteractableTemplate();
 			interactable.interactablePrefab = shrinePrefab;
 			interactable.slightlyRandomizeOrientation = false;
-			interactable.selectionWeight = 3;
+			interactable.selectionWeight = impShrineWeight.Value;
 			interactable.interactableCategory = Interactables.Category.Shrines;
 
 
@@ -902,6 +1112,73 @@ namespace Evaisa.MoreShrines
 
 		}
 
+		public void GenerateWispShrine()
+		{
 
+			var ChanceCard = Resources.Load<SpawnCard>("SpawnCards/InteractableSpawnCard/iscShrineBlood");
+
+			var oldPrefab = ChanceCard.prefab;
+
+
+
+			var shrinePrefab = (GameObject)Evaisa.MoreShrines.EvaResources.ShrineWispPrefab;
+			var mdlBase = shrinePrefab.transform.Find("Base").Find("mdlShrineWisp");
+
+			mdlBase.GetComponent<MeshRenderer>().material.shader = Shader.Find("Hopoo Games/Deferred/Standard");
+			mdlBase.GetComponent<MeshRenderer>().material.color = new Color(1.0f, 0.8549f, 0.7647f, 1.0f);
+
+			var symbolTransform = shrinePrefab.transform.Find("Symbol");
+
+
+			
+			var directorCard1 = new DirectorCard();
+			directorCard1.spawnCard = Resources.Load<CharacterSpawnCard>("spawncards/characterspawncards/cscLesserWisp");
+			directorCard1.selectionWeight = 10;
+			directorCard1.spawnDistance = DirectorCore.MonsterSpawnDistance.Standard;
+			directorCard1.allowAmbushSpawn = true;
+			directorCard1.preventOverhead = false;
+			directorCard1.minimumStageCompletions = 0;
+
+			var directorCard2 = new DirectorCard();
+			directorCard2.spawnCard = Resources.Load<CharacterSpawnCard>("spawncards/characterspawncards/cscGreaterWisp");
+			directorCard2.selectionWeight = 3;
+			directorCard2.spawnDistance = DirectorCore.MonsterSpawnDistance.Standard;
+			directorCard2.allowAmbushSpawn = true;
+			directorCard2.preventOverhead = false;
+			directorCard2.minimumStageCompletions = 0;
+
+
+			var combatDirector = shrinePrefab.GetComponent<CombatDirector>();
+			var cardSelection = ScriptableObject.CreateInstance<DirectorCardCategorySelection>();
+			cardSelection.AddCategory("Imps", 13);
+			cardSelection.AddCard(0, directorCard1);
+			cardSelection.AddCard(0, directorCard2);
+
+			combatDirector.monsterCards = cardSelection;
+
+			var wispShrineBehaviour = shrinePrefab.AddComponent<ShrineWispBehaviour>();
+			wispShrineBehaviour.shrineEffectColor = new Color(0.6661001f, 0.5333304f, 0.8018868f);
+			wispShrineBehaviour.symbolTransform = symbolTransform;
+
+			/*
+			var impBehaviour = shrinePrefab.AddComponent<ShrineImpBehaviour>();
+			impBehaviour.shrineEffectColor = new Color(0.6661001f, 0.5333304f, 0.8018868f);
+			impBehaviour.symbolTransform = symbolTransform;
+			impBehaviour.directorCard = directorCard;
+			*/
+
+			//var customDirector = shrinePrefab.AddComponent<CustomDirector>();
+
+
+			var interactable = new BetterAPI.Interactables.InteractableTemplate();
+			interactable.interactablePrefab = shrinePrefab;
+			interactable.slightlyRandomizeOrientation = false;
+			interactable.selectionWeight = wispShrineWeight.Value;
+			interactable.interactableCategory = Interactables.Category.Shrines;
+
+
+			wispShrineInteractableInfo = Interactables.AddToStages(interactable, Interactables.Stages.ScorchedAcres | Interactables.Stages.SirensCall);
+
+		}
 	}
 }
