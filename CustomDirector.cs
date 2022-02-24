@@ -30,14 +30,20 @@ namespace Evaisa.MoreShrines
 		}
 		*/
 
-       // private bool CombatDirector_AttemptSpawnOnTarget(On.RoR2.CombatDirector.orig_AttemptSpawnOnTarget orig, CombatDirector self, Transform spawnTarget, DirectorPlacementRule.PlacementMode placementMode)
-       // {
-			// throw new NotImplementedException();
-			//return AttemptSpawnOnTarget<ShrineImpBehaviour>(orig, self, spawnTarget, placementMode);
+		// private bool CombatDirector_AttemptSpawnOnTarget(On.RoR2.CombatDirector.orig_AttemptSpawnOnTarget orig, CombatDirector self, Transform spawnTarget, DirectorPlacementRule.PlacementMode placementMode)
+		// {
+		// throw new NotImplementedException();
+		//return AttemptSpawnOnTarget<ShrineImpBehaviour>(orig, self, spawnTarget, placementMode);
 
 		//}
 
-        public class CardPool
+		void OnDestroy()
+		{
+			On.RoR2.CombatDirector.AttemptSpawnOnTarget -= AttemptSpawnOnTarget;
+		}
+
+
+		public class CardPool
 		{
 			public int cost = 0;
 			public List<DirectorCard> cards = new List<DirectorCard>();

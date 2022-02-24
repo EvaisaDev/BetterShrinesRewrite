@@ -104,6 +104,11 @@ namespace Evaisa.MoreShrines
 			}
 		}
 
+		void OnDestroy()
+        {
+			On.RoR2.TeleporterInteraction.AddShrineStack -= TeleporterInteraction_AddShrineStack;
+		}
+
 		/*
         private void CombatDirector_PrepareNewMonsterWave(On.RoR2.CombatDirector.orig_PrepareNewMonsterWave orig, CombatDirector self, DirectorCard monsterCard)
 		{

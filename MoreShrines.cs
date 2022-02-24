@@ -31,7 +31,7 @@ namespace Evaisa.MoreShrines
 	[BepInPlugin(ModGuid, ModName, ModVer)]
 	public class MoreShrines : BaseUnityPlugin
     {
-		private const string ModVer = "1.1.2";
+		private const string ModVer = "1.1.7.1";
 		private const string ModName = "More Shrines";
 		private const string ModGuid = "com.evaisa.moreshrines";
 
@@ -46,6 +46,7 @@ namespace Evaisa.MoreShrines
 		public static Interactables.InteractableInfo disorderShrineInteractableInfo;
 		public static Interactables.InteractableInfo heresyShrineInteractableInfo;
 		public static Interactables.InteractableInfo wispShrineInteractableInfo;
+		public static Interactables.InteractableInfo shieldShrineInteractableInfo;
 
 
 		public static ConfigEntry<bool> impShrineEnabled;
@@ -73,6 +74,10 @@ namespace Evaisa.MoreShrines
 		public static ConfigEntry<bool> wispShrineEnabled;
 		public static ConfigEntry<bool> wispShrineScaleDifficulty;
 		public static ConfigEntry<int> wispShrineWeight;
+
+		//public static ConfigEntry<bool> shieldShrineEnabled;
+		//public static ConfigEntry<int> shieldShrineWeight;
+
 
 		public static CostTypeDef costTypeDefShrineFallen;
 		public static CostTypeDef costTypeDefShrineDisorder;
@@ -140,45 +145,89 @@ namespace Evaisa.MoreShrines
 			{
 				GenerateWispShrine();
 			}
+			/*
+			if (shieldShrineEnabled.Value)
+			{
+				GenerateShieldShrine();
+			}
+			*/
 
 			On.RoR2.Artifacts.SwarmsArtifactManager.OnSpawnCardOnSpawnedServerGlobal += SwarmsArtifactManager_OnSpawnCardOnSpawnedServerGlobal;
 
-
-			if (debugMode)
-			{
-				generateDebugObject();
-
-				
-				On.RoR2.Networking.GameNetworkManager.OnClientConnect += (self, user, t) => { };
-				
-
-				On.RoR2.CombatDirector.AttemptSpawnOnTarget += (orig, self, spawnTarget, placementMode) =>
-				{
-					if (self.transform.name == "Director")
-					{
-						return false;
-					}
-					else
-					{
-						return orig(self, spawnTarget, placementMode);
-					}
-				};
-				
-				
-				
-			
-				On.RoR2.SceneDirector.GenerateInteractableCardSelection += SceneDirector_GenerateInteractableCardSelection;
-
-                On.RoR2.Stage.Start += Stage_Start;
-
-			}
-
+			//HealthBarAPI.Init();
+			//setupHealthBar();
+			//On.RoR2.UI.HealthBar.UpdateBarInfos += HealthBar_UpdateBarInfos;
+			//IL.RoR2.UI.HealthBar.UpdateBarInfos += HealthBar_UpdateBarInfos;
 		}
 
-        private void Stage_Start(On.RoR2.Stage.orig_Start orig, Stage self)
+		/*
+		public static HealthBar.BarInfo customShieldBarInfo;
+		public static HealthBarStyle.BarStyle customShieldBarStyle;
+
+		private void setupHealthBar()
+        {
+			customShieldBarInfo = new HealthBar.BarInfo()
+			{
+				normalizedXMin = 0,
+				normalizedXMax = 0,
+			};
+			customShieldBarStyle = new HealthBarStyle.BarStyle()
+			{
+				enabled = true,
+				baseColor = Color.yellow,
+				sprite = EvaResources.ShieldBar,
+				imageType = UnityEngine.UI.Image.Type.Tiled,
+				sizeDelta = 0,
+			};
+		}
+		*/
+		/*
+		private void HealthBar_UpdateBarInfos(ILContext il)
+		{
+			var c = new ILCursor(il);
+
+			var found = c.TryGotoNext(
+				x => x.MatchLdarg(0),
+				x => x.MatchLdfld("RoR2.HealthComponent/HealthBarValues", "shieldFraction"),
+				x => x.MatchLdloca(0)
+			);
+
+			c.Index += 3;
+
+			if (found)
+			{
+				c.Emit(OpCodes.Ldarg_0);
+				c.Emit(OpCodes.Ldloc, 2);
+				c.EmitDelegate<Action<HealthBar, float>>((healthBar, currentBarEnd) => {
+
+					ref HealthBar.BarInfo local3 = ref customShieldBarInfo;
+					local3.enabled = true;
+					ApplyStyle(ref local3, ref customShieldBarStyle);
+					AddBar(ref local3, 10);
+
+					void AddBar(ref HealthBar.BarInfo barInfo, float fraction)
+					{
+						if (!barInfo.enabled)
+							return;
+						barInfo.normalizedXMin = currentBarEnd;
+						currentBarEnd = barInfo.normalizedXMax = barInfo.normalizedXMin + fraction;
+					}
+
+					void ApplyStyle(ref HealthBar.BarInfo barInfo, ref HealthBarStyle.BarStyle barStyle)
+					{
+						barInfo.enabled &= barStyle.enabled;
+						barInfo.color = barStyle.baseColor;
+						barInfo.sprite = barStyle.sprite;
+						barInfo.imageType = barStyle.imageType;
+						barInfo.sizeDelta = barStyle.sizeDelta;
+					}
+				});
+			}
+		}*/
+
+		private void Stage_Start(On.RoR2.Stage.orig_Start orig, Stage self)
         {
 			orig(self);
-			DebugScript.instances.Clear();
 			foreach(var objective in objectives)
             {
 				Objectives.RemoveObjective(objective);
@@ -188,28 +237,7 @@ namespace Evaisa.MoreShrines
 
         void Update()
         {
-			if (debugMode)
-			{
-
-				if (Run.instance && NetworkServer.active && debugPrefab)
-				{
-					DebugScript.SpawnTheBehavioursOnClients();
-				}
-			
-				
-				//DebugCheats.HandleCheats();
-			}
-		}
-        public void generateDebugObject()
-        {
-			var gameObject = new GameObject("DebugObjectMoreShrines");
-			gameObject.AddComponent<NetworkIdentity>();
-			gameObject.GetComponent<NetworkIdentity>().localPlayerAuthority = true;
-			debugPrefab = BetterAPI.Utils.PrefabFromGameObject(gameObject);
-			debugPrefab.AddComponent<DebugScript>();
-			BetterAPI.NetworkedPrefabs.Add(debugPrefab);
-
-			
+			//HealthBarAPI.Update();
 		}
 
 		public void CreateCostDefWispWhite()
@@ -550,6 +578,10 @@ namespace Evaisa.MoreShrines
 			Languages.AddTokenString("SHRINE_WISP_ACCEPT_MESSAGE", "<style=cShrine>The tree accepted {0}'s <color=#{1}>{2}</color> and ghostly Wisps appeared.</style>");
 			Languages.AddTokenString("SHRINE_WISP_DENY_MESSAGE_2P", "<style=cIsDamage>The tree rejected your <color=#{1}>{2}</color> and angry Wisps appeared..</style>");
 			Languages.AddTokenString("SHRINE_WISP_DENY_MESSAGE", "<style=cIsDamage>The tree rejected {0}'s <color=#{1}>{2}</color> and angry Wisps appeared..</style>");
+			Languages.AddTokenString("SHRINE_SHIELDING_NAME", "Shrine of Hardening");
+			Languages.AddTokenString("SHRINE_SHIELDING_CONTEXT", "Touch the shield.");
+			Languages.AddTokenString("SHRINE_SHIELDING_USE_MESSAGE_2P", "<style=cShrine>You feel protected.</style>");
+			Languages.AddTokenString("SHRINE_SHIELDING_USE_MESSAGE", "<style=cShrine>{0} feels protected.</style>");
 		}
 
 		public void RegisterConfig()
@@ -694,6 +726,22 @@ namespace Evaisa.MoreShrines
 				2,
 				"The spawn weight of this shrine, lower is more rare."
 			);
+
+			// Shrine of Shielding
+			/*
+			shieldShrineEnabled = Config.Bind<bool>(
+				"Shrine of Shielding",
+				"Enable",
+				true,
+				"Enable the Shrine of Shielding."
+			);
+			shieldShrineWeight = Config.Bind<int>(
+				"Shrine of Shielding",
+				"Weight",
+				1,
+				"The spawn weight of this shrine, lower is more rare."
+			);
+			*/
 		}
 
         public void GenerateTinyImp()
@@ -795,16 +843,15 @@ namespace Evaisa.MoreShrines
 		private void SwarmsArtifactManager_OnSpawnCardOnSpawnedServerGlobal(On.RoR2.Artifacts.SwarmsArtifactManager.orig_OnSpawnCardOnSpawnedServerGlobal orig, SpawnCard.SpawnResult result)
 		{
 			var allow_handle = true;
-			if (result.spawnRequest.spawnCard as CharacterSpawnCard)
+
+			if (result.spawnedInstance)
 			{
-				if (result.spawnedInstance.gameObject.GetComponent<CharacterMaster>())
+				if (result.spawnedInstance.GetComponent<TinyImp>())
 				{
-					if (!result.spawnedInstance.gameObject.GetComponent<TinyImp>())
-					{
-						allow_handle = false;
-					}
+					allow_handle = false;
 				}
 			}
+
 			if (allow_handle)
             {
 				orig(result);
@@ -851,6 +898,7 @@ namespace Evaisa.MoreShrines
 
 			var ChanceCard = Resources.Load<SpawnCard>("SpawnCards/InteractableSpawnCard/iscShrineHealing");
 
+			/*
 			var oldPrefab = ChanceCard.prefab;
 			var oldSymbol = oldPrefab.transform.Find("Symbol");
 			var oldSymbolRenderer = oldSymbol.GetComponent<MeshRenderer>();
@@ -865,6 +913,14 @@ namespace Evaisa.MoreShrines
 			mdlBase.GetComponent<MeshRenderer>().material.color = new Color(1.0f, 0.8549f, 0.7647f, 1.0f);
 
 			var symbolTransform = shrinePrefab.transform.Find("Symbol");
+			*/
+			var info = new ShrineAPI.ShrineInfo(ShrineAPI.ShrineBaseType.Order, new Color(1.0f, 0.8549f, 0.7647f, 1.0f), (GameObject)Evaisa.MoreShrines.EvaResources.ShrineFallenPrefab);
+
+			var symbolTransform = info.shrinePrefab.transform.Find("Symbol");
+
+			var mdlBase = info.modelTransform;
+
+			var shrinePrefab = info.shrinePrefab;
 
 			var purchaseInteraction = shrinePrefab.GetComponent<PurchaseInteraction>();
 
@@ -906,6 +962,7 @@ namespace Evaisa.MoreShrines
 			//purchaseInteraction.cost;
 			//
 
+			/*
 			var symbolMesh = symbolTransform.gameObject.GetComponent<MeshRenderer>();
 
 			var texture = symbolMesh.material.mainTexture;
@@ -914,7 +971,7 @@ namespace Evaisa.MoreShrines
 
 			symbolMesh.material.CopyPropertiesFromMaterial(oldSymbolMaterial);
 			symbolMesh.material.mainTexture = texture;
-
+			*/
 			var fallenBehaviour = shrinePrefab.AddComponent<ShrineFallenBehaviour>();
 			fallenBehaviour.shrineEffectColor = new Color(0.384f, 0.874f, 0.435f);
 			fallenBehaviour.symbolTransform = symbolTransform;
@@ -947,6 +1004,7 @@ namespace Evaisa.MoreShrines
 
 			var ChanceCard = Resources.Load<SpawnCard>("SpawnCards/InteractableSpawnCard/iscShrineRestack");
 
+			/*
 			var oldPrefab = ChanceCard.prefab;
 			var oldSymbol = oldPrefab.transform.Find("Symbol");
 			var oldSymbolRenderer = oldSymbol.GetComponent<MeshRenderer>();
@@ -974,7 +1032,15 @@ namespace Evaisa.MoreShrines
 			symbolMesh.material = new Material(Shader.Find("Hopoo Games/FX/Cloud Remap"));
 
 			symbolMesh.material.CopyPropertiesFromMaterial(oldSymbolMaterial);
-			symbolMesh.material.mainTexture = texture;
+			symbolMesh.material.mainTexture = texture;*/
+
+			var info = new ShrineAPI.ShrineInfo(ShrineAPI.ShrineBaseType.Order, new Color(1.0f, 0.8549f, 0.7647f, 1.0f), (GameObject)Evaisa.MoreShrines.EvaResources.ShrineHeresyPrefab);
+
+			var symbolTransform = info.shrinePrefab.transform.Find("Symbol");
+
+			var mdlBase = info.modelTransform;
+
+			var shrinePrefab = info.shrinePrefab;
 
 			var shrineBehaviour = shrinePrefab.AddComponent<ShrineHeresyBehaviour>();
 			shrineBehaviour.shrineEffectColor = new Color(1f, 0.23f, 0.6337214f);
@@ -997,46 +1063,20 @@ namespace Evaisa.MoreShrines
 
 			var ChanceCard = Resources.Load<SpawnCard>("SpawnCards/InteractableSpawnCard/iscShrineRestack");
 
-			var oldPrefab = ChanceCard.prefab;
-			var oldSymbol = oldPrefab.transform.Find("Symbol");
-			var oldSymbolRenderer = oldSymbol.GetComponent<MeshRenderer>();
-			var oldSymbolMaterial = oldSymbolRenderer.material;
+			var info = new ShrineAPI.ShrineInfo(ShrineAPI.ShrineBaseType.Order, new Color(1.0f, 0.8549f, 0.7647f, 1.0f), (GameObject)Evaisa.MoreShrines.EvaResources.ShrineDisorderPrefab);
 
+			var symbolTransform = info.shrinePrefab.transform.Find("Symbol");
 
+			var mdlBase = info.modelTransform;
 
-			var shrinePrefab = (GameObject)Evaisa.MoreShrines.EvaResources.ShrineDisorderPrefab;
-
-			//Debug.Log(shrinePrefab);
-
-			var mdlBase = shrinePrefab.transform.Find("Base").Find("mdlShrineDisorder");
-			//mdlBase.transform.Find("ShrineDisorderMesh").GetComponent<MeshRenderer>().material.mainTexture = Resources.Load<Texture2D>("Assets/Texture2D/texShrineRestackDiffuse.png");
-
-
-			foreach (MeshRenderer renderer in mdlBase.transform.GetComponentsInChildren<MeshRenderer>()) {
-				renderer.material.shader = Shader.Find("Hopoo Games/Deferred/Standard");
-				renderer.material.color = new Color(1.0f, 0.8549f, 0.7647f, 1.0f);
-
-			}
-
-		
-
-			var symbolTransform = shrinePrefab.transform.Find("Symbol");
-
-
-			var symbolMesh = symbolTransform.gameObject.GetComponent<MeshRenderer>();
-
-			var texture = symbolMesh.material.mainTexture;
-
-			symbolMesh.material = new Material(Shader.Find("Hopoo Games/FX/Cloud Remap"));
-
-			symbolMesh.material.CopyPropertiesFromMaterial(oldSymbolMaterial);
-			symbolMesh.material.mainTexture = texture;
+			var shrinePrefab = info.shrinePrefab;
 
 			var shrineBehaviour = shrinePrefab.AddComponent<ShrineDisorderBehaviour>();
 			shrineBehaviour.shrineEffectColor = new Color(1f, 0.23f, 0.6337214f);
 			shrineBehaviour.symbolTransform = symbolTransform;
 			shrineBehaviour.modelBase = mdlBase.transform;
-	
+			
+
 			var interactable = new BetterAPI.Interactables.InteractableTemplate();
 			interactable.interactablePrefab = shrinePrefab;
 			interactable.slightlyRandomizeOrientation = false;
@@ -1048,12 +1088,50 @@ namespace Evaisa.MoreShrines
 
 		}
 
+		/*
+		public void GenerateShieldShrine()
+		{
+
+			var ChanceCard = Resources.Load<SpawnCard>("SpawnCards/InteractableSpawnCard/iscShrineChance");
+
+			var info = new ShrineAPI.ShrineInfo(ShrineAPI.ShrineBaseType.Order, new Color(1.0f, 0.8549f, 0.7647f, 1.0f), (GameObject)Evaisa.MoreShrines.EvaResources.ShrineShieldPrefab);
+
+			var symbolTransform = info.shrinePrefab.transform.Find("Symbol");
+
+			var mdlBase = info.modelTransform;
+
+			var shrinePrefab = info.shrinePrefab;
+
+			var shrineBehaviour = shrinePrefab.AddComponent<ShrineShieldingBehaviour>();
+			shrineBehaviour.shrineEffectColor = new Color(1f, 0.23f, 0.6337214f);
+			shrineBehaviour.symbolTransform = symbolTransform;
+
+
+			var interactable = new BetterAPI.Interactables.InteractableTemplate();
+			interactable.interactablePrefab = shrinePrefab;
+			interactable.slightlyRandomizeOrientation = false;
+			interactable.selectionWeight = shieldShrineWeight.Value;
+			interactable.interactableCategory = Interactables.Category.Shrines;
+
+
+			shieldShrineInteractableInfo = Interactables.AddToStages(interactable, Interactables.Stages.Default);
+
+		}*/
+
 		public void GenerateImpShrine()
 		{
 
 			var ChanceCard = Resources.Load<SpawnCard>("SpawnCards/InteractableSpawnCard/iscShrineHealing");
 
-			var oldPrefab = ChanceCard.prefab;
+			//var oldPrefab = ChanceCard.prefab;
+
+			var info = new ShrineAPI.ShrineInfo(ShrineAPI.ShrineBaseType.Healing, new Color(1.0f, 0.8549f, 0.7647f, 1.0f), (GameObject)Evaisa.MoreShrines.EvaResources.ShrineImpPrefab);
+
+			var symbolTransform = info.shrinePrefab.transform.Find("Symbol");
+
+			var shrinePrefab = info.shrinePrefab;
+
+			/*
 			var oldSymbol = oldPrefab.transform.Find("Symbol");
 			var oldSymbolRenderer = oldSymbol.GetComponent<MeshRenderer>();
 			var oldSymbolMaterial = oldSymbolRenderer.material;
@@ -1075,7 +1153,7 @@ namespace Evaisa.MoreShrines
 			symbolMesh.material = new Material(Shader.Find("Hopoo Games/FX/Cloud Remap"));
 
 			symbolMesh.material.CopyPropertiesFromMaterial(oldSymbolMaterial);
-			symbolMesh.material.mainTexture = texture;
+			symbolMesh.material.mainTexture = texture;*/
 
 
 			var directorCard = new DirectorCard();
@@ -1119,18 +1197,14 @@ namespace Evaisa.MoreShrines
 
 			var oldPrefab = ChanceCard.prefab;
 
+			var info = new ShrineAPI.ShrineInfo(ShrineAPI.ShrineBaseType.Blood, new Color(1.0f, 0.8549f, 0.7647f, 1.0f), (GameObject)Evaisa.MoreShrines.EvaResources.ShrineWispPrefab);
 
+			var symbolTransform = info.shrinePrefab.transform.Find("Symbol");
 
-			var shrinePrefab = (GameObject)Evaisa.MoreShrines.EvaResources.ShrineWispPrefab;
-			var mdlBase = shrinePrefab.transform.Find("Base").Find("mdlShrineWisp");
+			var mdlBase = info.modelTransform;
 
-			mdlBase.GetComponent<MeshRenderer>().material.shader = Shader.Find("Hopoo Games/Deferred/Standard");
-			mdlBase.GetComponent<MeshRenderer>().material.color = new Color(1.0f, 0.8549f, 0.7647f, 1.0f);
+			var shrinePrefab = info.shrinePrefab;
 
-			var symbolTransform = shrinePrefab.transform.Find("Symbol");
-
-
-			
 			var directorCard1 = new DirectorCard();
 			directorCard1.spawnCard = Resources.Load<CharacterSpawnCard>("spawncards/characterspawncards/cscLesserWisp");
 			directorCard1.selectionWeight = 10;

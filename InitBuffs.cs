@@ -41,11 +41,23 @@ namespace Evaisa.MoreShrines
 
             BetterAPI.Buffs.Add(maxHPDownStage);
 
-            // On.RoR2.CharacterBody.RecalculateStats += CharacterBody_RecalculateStats;
-            Stats.health.collectMultipliers += HealthMultiplier_getStatModifiers;
+            Stats.Health.collectMultipliers += Health_collectMultipliers;
             On.RoR2.Stage.BeginAdvanceStage +=Stage_BeginAdvanceStage;
 
             On.RoR2.UI.BuffIcon.UpdateIcon += BuffIcon_UpdateIcon;
+        }
+
+        private static void Health_collectMultipliers(CharacterBody sender, Stats.Stat.StatMultiplierArgs e)
+        {
+
+            if (sender != null)
+            {
+                if (sender is CharacterBody characterBody)
+                {
+                    e.multiplicativeMultipliers.Add(1f - characterBody.GetBuffCount(maxHPDownStage) / 100f);
+                    e.multiplicativeMultipliers.Add(1f - characterBody.GetBuffCount(maxHPDown) / 100f);
+                }
+            }
         }
 
         private static void BuffIcon_UpdateIcon(On.RoR2.UI.BuffIcon.orig_UpdateIcon orig, RoR2.UI.BuffIcon self)
@@ -76,20 +88,6 @@ namespace Evaisa.MoreShrines
             }
         }
 
-        private static void HealthMultiplier_getStatModifiers(CharacterBody sender, Stats.StatsEventHandler.StatsEventArgs e)
-        {
-            if (sender is CharacterBody characterBody)
-            {
-                e.stat *= 1f - characterBody.GetBuffCount(maxHPDownStage) / 100f;
-            }
-        }
-
-        /*
-                 if (!players.Contains(self))
-                {
-                    players.Add(self);
-                }
-        */
 
         private static void Stage_BeginAdvanceStage(On.RoR2.Stage.orig_BeginAdvanceStage orig, Stage self, SceneDef destinationStage)
         {
@@ -103,33 +101,5 @@ namespace Evaisa.MoreShrines
             orig(self, destinationStage);
         }
 
-        /*
-        private static void CharacterBody_RecalculateStats(On.RoR2.CharacterBody.orig_RecalculateStats orig, CharacterBody self)
-        {
-            
-            orig(self);
-
-            var originalMaxHealth = self.maxHealth;
-
-            var maxHPDowns = self.GetBuffCount(maxHPDown);
-            var stageMaxHPDowns = self.GetBuffCount(maxHPDownStage);
-           
-            if (stageMaxHPDowns > 0)
-            {
-                Debug.Log("rawr2");
-                self.maxHealth = originalMaxHealth - (originalMaxHealth * ((float)stageMaxHPDowns / 100f));
-            }
-
-            //
-            if (maxHPDowns > 0)
-            {
-                Debug.Log("rawr1");
-                self.maxHealth = originalMaxHealth - (originalMaxHealth * ((float)maxHPDowns / 100f));
-            }
-
-        }*/
-
     }
-
-
 }
